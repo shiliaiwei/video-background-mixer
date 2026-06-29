@@ -1,0 +1,17 @@
+# OS-specific files
+.DS_Store
+
+# Media files
+*.mp4
+*.mov
+*.mp3
+*.wav
+*.m4a
+*.aac
+*.flac
+
+# Media and output folders
+background_sounds/
+output/
+video_*/
+New Folder With Items/
