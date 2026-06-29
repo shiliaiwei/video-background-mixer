@@ -1,100 +1,94 @@
-# Video Background Mixer 🎬🎶
+# Video Background Mixer
 
-A robust, standard shell utility designed to mix random background music into folder-based videos, apply slowdown effects, and export them. Built for efficiency, portability, and compatibility.
+This project is a command-line script to automate mixing background audio into a batch of videos.
 
-## Features
-- 🔄 **Randomized Background Audio**: Selects a random audio track from your music folder for each video.
-- ⚡ **Maximum Speed Processing**: Utilizes `-c:v copy` direct stream copy when no video speed adjustment is requested (saving massive CPU cycles and time).
-- 🐢 **High-Quality Slowdown**: Custom slows down both video and audio tracks concurrently when configured.
-- ⚙️ **Fully Configurable**: Set volume, output name tags, max durations, and limits via standard CLI flags, environment variables, or positional arguments.
+## What it is
 
----
+The Video Background Mixer is a shell script utility designed to batch process all videos in a specified directory by adding randomly selected audio tracks from a sound directory. It supports adjusting the video and audio speed (slowdown factor), controlling background music volume, cropping output to a maximum duration, limiting the number of videos processed, and appending tags to the output filenames.
 
-## Prerequisites
+## Why use it
 
-Before running the script, ensure `ffmpeg` and `ffprobe` are installed on your system.
+Manual video editing for batch automation can be tedious and CPU-intensive. This script solves these issues:
 
-### macOS (via Homebrew)
-```bash
-brew install ffmpeg
-```
+1. Automation: Instead of dragging and dropping files in video editing software, you can batch-process hundreds of videos with a single command.
+2. Intelligent Speed Optimization: 
+   - When the slow factor is set to 1.0, the script copies the video stream directly without re-encoding (using direct video copy). This preserves the original video quality and completes processing in seconds.
+   - Re-encoding (transcoding) is only done when you explicitly request a video slowdown (slow factor not equal to 1.0).
+3. Randomization: It automatically selects a random audio track from your music folder for each video, ensuring variation across outputs.
+4. Robustness: It handles videos both with and without pre-existing audio tracks, mixing them correctly without failing.
 
-### Linux (Debian/Ubuntu)
-```bash
-sudo apt-get update && sudo apt-get install ffmpeg
-```
+## Workflow
 
----
+The script executes the following sequence:
 
-## Usage
+1. Initialization: Configures default variables for video source, sound source, output directory, volume, slowdown factor, limits, and filename tags.
+2. Argument Parsing: Parses command-line options and positional parameters.
+3. System Check: Verifies that ffmpeg and ffprobe exist in the environment path and that target directories exist.
+4. File Discovery: Scans the video directory for video files (mp4, mov, m4v) and the sound directory for audio files (mp3, wav, m4a, aac, flac).
+5. Processing Loop: Iterates through each discovered video file (up to the defined limit):
+   - Selects a random music track from the sound directory.
+   - Determines the output file name by appending the configured suffix tags.
+   - Checks if the output file already exists (skips if it does).
+   - Probes the input video using ffprobe to detect if it has an audio track.
+   - Matches the slowdown setting:
+     - If slow-motion is disabled: Maps the video stream directly (fast copy) and mixes the video's original audio with the background music.
+     - If slow-motion is enabled: Re-encodes the video stream to slow it down (using presentation timestamp scaling) and stretches/slows the original audio before mixing.
+   - Loops the background audio stream indefinitely so that it never cuts off early, but uses the shortest flag to terminate when the video ends.
+   - Saves the final processed file in the output directory.
 
-You can run the script using default settings, passing arguments in sequence, or specifying details using command line flags.
+## How to use it
 
-### Quick Start (Defaults)
-Place your videos inside a folder named `video_1`, your music inside `background_sounds`, and run:
-```bash
+### Prerequisites
+
+Ensure you have ffmpeg and ffprobe installed on your system path.
+
+### Execution
+
+Make the script executable:
+chmod +x add_random_background.sh
+
+Run with default settings:
 ./add_random_background.sh
-```
 
-### 1. Positional Arguments
-For quick runs, you can supply directories in order:
-```bash
+Run with positional arguments:
 ./add_random_background.sh [video_dir] [sound_dir] [output_dir]
-```
-Example:
-```bash
-./add_random_background.sh input_videos music_library output_rendered
-```
 
-### 2. Command Line Flags (Recommended)
-Customize any parameters on the fly using standard flags:
-```bash
+Run with custom options:
 ./add_random_background.sh [options]
-```
 
-| Flag | Long Option | Description | Default |
-|---|---|---|---|
-| `-v <dir>` | `--video-dir <dir>` | Input directory containing video files | `video_1` |
-| `-s <dir>` | `--sound-dir <dir>` | Input directory containing audio files | `background_sounds` |
-| `-o <dir>` | `--output-dir <dir>` | Output directory for mixed files | `output` |
-| `-b <num>` | `--volume <num>` | Background music volume scale (e.g. `0.15` for 15%) | `0.20` |
-| `-l <num>` | `--limit <num>` | Limit the number of videos processed (0 for no limit) | `0` |
-| `-f <num>` | `--slow-factor <num>`| Slowdown factor (set to `1.0` to disable slow effect) | `2.00` |
-| `-d <num>` | `--duration <num>` | Maximum output video duration in seconds (0 for no limit) | `110` |
-| `-t <str>` | `--tags <str>` | Suffix tag added to output filenames | `" #chess #checkmate #winner"` |
-| `-h` | `--help` | Show the help menu and usage instructions | - |
+### Options
 
----
+-v, --video-dir DIR
+Set the video input directory (default: video_1)
 
-## Examples
+-s, --sound-dir DIR
+Set the sound input directory (default: background_sounds)
 
-### Disable Suffix Tags & Slowdown
-To run without slowing down the video (keeping the original speed and performing a near-instant video copy) and without tags:
-```bash
+-o, --output-dir DIR
+Set the output directory (default: output)
+
+-b, --volume VOL
+Set background music volume scale, e.g., 0.15 for 15% (default: 0.20)
+
+-l, --limit NUM
+Limit the number of videos to process (default: 0 for no limit)
+
+-f, --slow-factor X
+Slow down video and audio factor, set to 1.0 to disable (default: 2.00)
+
+-d, --duration SECS
+Maximum output video duration in seconds (default: 110)
+
+-t, --tags STR
+Set the suffix string or tags for the output filename (default: " #chess #checkmate #winner")
+
+-h, --help
+Show help message and exit
+
+### Examples
+
+Disable video slowdown and output tags to process videos at original speed:
 ./add_random_background.sh --slow-factor 1.0 --tags ""
-```
 
-### Custom Render Settings
-Process 5 videos with low music volume (10%), slow down by 1.5x, cap at 60 seconds, and append custom tags:
-```bash
-./add_random_background.sh \
-  -v my_shorts \
-  -s lo-fi_beats \
-  -o processed_shorts \
-  --volume 0.10 \
-  --slow-factor 1.5 \
-  --duration 60 \
-  --limit 5 \
-  --tags " #shorts #edit #chill"
-```
-
----
-
-## Technical Details
-
-### Speed vs. Quality
-- **Standard Mode (Slow Factor = `1.0`)**: If the slow factor is set to `1.0` (or `1`), the script bypasses video re-encoding entirely. It maps the video stream directly (`-c:v copy`), only re-encoding the audio stream to AAC. This is extremely fast and lossless for the video stream.
-- **Slow Motion Mode (Slow Factor != `1.0`)**: If video slowdown is requested, FFmpeg must transcode the video stream (`libx264` codec, `-preset veryfast` preset, and a visually lossless `-crf 18` target) to insert the speed modifications.
-
-### Splicing Audio
-The background audio will automatically repeat (`-stream_loop -1`) if it is shorter than the video length, and will be cut precisely to the length of the video (`-shortest`) or the max duration limit.
+Process up to 5 videos with background volume set to 10% and maximum output duration capped at 60 seconds:
+./add_random_background.sh -l 5 -b 0.10 -d 60
