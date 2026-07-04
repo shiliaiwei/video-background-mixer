@@ -9,3 +9,4 @@
 - **Folder Exclusion and Scope**: Never process, modify, or touch videos inside the `fb` folder. Only look in and process videos located in the `videos` folder.
 - **Watermark Font Style**: The text watermark ("史力爱卫") must be rendered in **bold** using `STHeiti Medium.ttc` or an equivalent bold system font.
 - **Audio Mixing Volumes**: The background music volume must be mixed at **1.50 (150% volume)** relative to the original video audio, which remains at **1.00 (100% volume)**.
+- **Audio Fading**: No fade-in or fade-out effects must be applied to any audio track (fade duration set to 0).
