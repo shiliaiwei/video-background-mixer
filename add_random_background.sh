@@ -9,7 +9,7 @@ BACKGROUND_VOLUME="${BACKGROUND_VOLUME:-1.50}"
 LIMIT="${LIMIT:-0}"
 SLOW_FACTOR="${SLOW_FACTOR:-1.00}"
 SEEK_SOUND="${SEEK_SOUND:-0}"
-FADE_DURATION="${FADE_DURATION:-3}"
+FADE_DURATION="${FADE_DURATION:-0}"
 MAX_DURATION="${MAX_DURATION:-180}"
 TAGS=" #chess #checkmate #winner"
 POSITIONAL_ARGS=()
@@ -34,7 +34,7 @@ Options:
   -l, --limit NUM       Limit the number of videos to process (default: 0, no limit)
   -f, --slow-factor X   Slow down video/audio factor, e.g., 1.0 to disable (default: 1.00)
   -c, --seek-sound SECS Seconds of background music to skip at start (default: 0)
-  --fade-duration SECS  Duration of fade-in for background music (default: 3)
+  --fade-duration SECS  Duration of fade-in for background music (default: 0)
   -d, --duration SECS   Maximum output video duration in seconds (default: 180)
   -t, --tags STR        Set the suffix string/tags for output filename (default: " #chess #checkmate #winner")
   -h, --help            Show this help message and exit
