@@ -5,10 +5,12 @@ set -euo pipefail
 VIDEO_DIR=""
 SOUND_DIR=""
 OUTPUT_DIR=""
-BACKGROUND_VOLUME="${BACKGROUND_VOLUME:-0.20}"
+BACKGROUND_VOLUME="${BACKGROUND_VOLUME:-1.50}"
 LIMIT="${LIMIT:-0}"
-SLOW_FACTOR="${SLOW_FACTOR:-2.00}"
-MAX_DURATION="${MAX_DURATION:-110}"
+SLOW_FACTOR="${SLOW_FACTOR:-1.00}"
+SEEK_SOUND="${SEEK_SOUND:-0}"
+FADE_DURATION="${FADE_DURATION:-3}"
+MAX_DURATION="${MAX_DURATION:-180}"
 TAGS=" #chess #checkmate #winner"
 POSITIONAL_ARGS=()
 
@@ -30,13 +32,15 @@ Options:
   -o, --output-dir DIR  Set the output directory
   -b, --volume VOL      Set background music volume scale, e.g., 0.15 (default: 0.20)
   -l, --limit NUM       Limit the number of videos to process (default: 0, no limit)
-  -f, --slow-factor X   Slow down video/audio factor, e.g., 1.0 to disable (default: 2.00)
-  -d, --duration SECS   Maximum output video duration in seconds (default: 110)
+  -f, --slow-factor X   Slow down video/audio factor, e.g., 1.0 to disable (default: 1.00)
+  -c, --seek-sound SECS Seconds of background music to skip at start (default: 0)
+  --fade-duration SECS  Duration of fade-in for background music (default: 3)
+  -d, --duration SECS   Maximum output video duration in seconds (default: 180)
   -t, --tags STR        Set the suffix string/tags for output filename (default: " #chess #checkmate #winner")
   -h, --help            Show this help message and exit
 
 Environment Variables:
-  BACKGROUND_VOLUME     Fallback background volume (default: 0.20)
+  BACKGROUND_VOLUME     Fallback background volume (default: 1.50)
   LIMIT                 Fallback limit (default: 0)
   SLOW_FACTOR           Fallback slow factor (default: 2.00)
   MAX_DURATION          Fallback max duration (default: 110)
@@ -88,6 +92,16 @@ while [[ $# -gt 0 ]]; do
     -f|--slow-factor)
       if [[ $# -lt 2 ]]; then echo "Error: $1 requires an argument." >&2; exit 1; fi
       SLOW_FACTOR="$2"
+      shift 2
+      ;;
+    -c|--seek-sound|--skip-sound)
+      if [[ $# -lt 2 ]]; then echo "Error: $1 requires an argument." >&2; exit 1; fi
+      SEEK_SOUND="$2"
+      shift 2
+      ;;
+    --fade-duration)
+      if [[ $# -lt 2 ]]; then echo "Error: $1 requires an argument." >&2; exit 1; fi
+      FADE_DURATION="$2"
       shift 2
       ;;
     -d|--duration|--max-duration)
@@ -155,6 +169,11 @@ fi
 
 mkdir -p "$OUTPUT_DIR"
 
+cleanup() {
+  rm -f "$OUTPUT_DIR"/temp_trimmed_*_"$$"* 2>/dev/null || true
+}
+trap cleanup EXIT
+
 # Collect videos
 videos=()
 while IFS= read -r -d '' video_file; do
@@ -193,6 +212,12 @@ echo "Sound folder:      $SOUND_DIR"
 echo "Output folder:     $OUTPUT_DIR"
 echo "Background volume: $BACKGROUND_VOLUME"
 echo "Slow factor:       $SLOW_FACTOR"
+if [ "$SEEK_SOUND" -gt 0 ]; then
+  echo "Seek sound:        ${SEEK_SOUND}s"
+fi
+if [ "$FADE_DURATION" -gt 0 ]; then
+  echo "Fade duration:     ${FADE_DURATION}s"
+fi
 if [ "$MAX_DURATION" -gt 0 ]; then
   echo "Max duration:      ${MAX_DURATION}s"
 fi
@@ -218,7 +243,12 @@ for video in "${videos[@]}"; do
 
   filename="$(basename "$video")"
   name="${filename%.*}"
-  output="$OUTPUT_DIR/${name}${TAGS}.mp4"
+
+  # Calculate subfolder grouping (limit 15 videos per folder)
+  folder_num=$(((count - 1) / 15 + 1))
+  target_dir="$OUTPUT_DIR/part_$folder_num"
+  mkdir -p "$target_dir"
+  output="$target_dir/${name}${TAGS}.mp4"
 
   if [ -f "$output" ]; then
     echo "[$count/${#videos[@]}] $filename"
@@ -227,19 +257,62 @@ for video in "${videos[@]}"; do
     continue
   fi
 
+  # Check original video duration using ffprobe
+  orig_duration="$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$video")"
+  
+  # Check if video duration is longer than 180 seconds (3 minutes)
+  is_longer_than_3m="$(awk "BEGIN { print ($orig_duration > 180) ? 1 : 0 }")"
+
+  # Initialize iteration-local variables
+  current_slow_factor="$SLOW_FACTOR"
+  current_slow_enabled=1
+  if [ "$current_slow_factor" = "1" ] || [ "$current_slow_factor" = "1.0" ] || [ "$current_slow_factor" = "1.00" ]; then
+    current_slow_enabled=0
+  fi
+
   duration_args=()
   if [ "$MAX_DURATION" -gt 0 ]; then
     duration_args=(-t "$MAX_DURATION")
   fi
 
-  slow_enabled=1
-  if [ "$SLOW_FACTOR" = "1" ] || [ "$SLOW_FACTOR" = "1.0" ] || [ "$SLOW_FACTOR" = "1.00" ]; then
-    slow_enabled=0
+  if [ "$is_longer_than_3m" -eq 1 ]; then
+    # Speed it up to exactly 170 seconds (2:50)
+    current_slow_factor="$(awk "BEGIN { printf \"%.6f\", 170 / $orig_duration }")"
+    current_slow_enabled=1
+    duration_args=() # Disable duration cap since speed-up targets 170s
+    echo "  video is longer than 3 minutes (${orig_duration}s). Speeding up to 2:50s (slow factor: ${current_slow_factor})."
+  else
+    echo "  video duration: ${orig_duration}s"
   fi
-  audio_atempo="$(awk "BEGIN { printf \"%.6f\", 1 / $SLOW_FACTOR }")"
+
+  audio_atempo="$(awk "BEGIN { printf \"%.6f\", 1 / $current_slow_factor }")"
 
   echo "[$count/${#videos[@]}] Processing: $filename"
   echo "  using music: $(basename "$sound")"
+
+  # Trim the sound starting at SEEK_SOUND if requested
+  actual_sound="$sound"
+  if [ -n "${SEEK_SOUND:-}" ] && [ "$SEEK_SOUND" -gt 0 ]; then
+    sound_duration="$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$sound")"
+    sound_duration_int="${sound_duration%.*}"
+    if [ -n "$sound_duration_int" ] && [ "$sound_duration_int" -gt "$SEEK_SOUND" ]; then
+      sound_ext="${sound##*.}"
+      temp_sound="$OUTPUT_DIR/temp_trimmed_${count}_$$.${sound_ext}"
+      if ffmpeg -y -ss "$SEEK_SOUND" -i "$sound" -c copy "$temp_sound" >/dev/null 2>&1; then
+        actual_sound="$temp_sound"
+        echo "  trimmed music first ${SEEK_SOUND}s off"
+      else
+        if ffmpeg -y -ss "$SEEK_SOUND" -i "$sound" "$temp_sound" >/dev/null 2>&1; then
+          actual_sound="$temp_sound"
+          echo "  trimmed music first ${SEEK_SOUND}s off"
+        else
+          echo "  Warning: failed to trim background sound. Using original."
+        fi
+      fi
+    else
+      echo "  Warning: background sound is shorter than seek time. Using original."
+    fi
+  fi
 
   has_audio="$(
     ffprobe -v error \
@@ -249,12 +322,17 @@ for video in "${videos[@]}"; do
       "$video" || true
   )"
 
+  bg_audio_filter="volume=${BACKGROUND_VOLUME}"
+  if [ -n "${FADE_DURATION:-}" ] && [ "$FADE_DURATION" -gt 0 ]; then
+    bg_audio_filter="${bg_audio_filter},afade=t=in:ss=0:d=${FADE_DURATION}"
+  fi
+
   if [ -n "$has_audio" ]; then
-    if [ "$slow_enabled" -eq 1 ]; then
+    if [ "$current_slow_enabled" -eq 1 ]; then
       ffmpeg -y \
         -i "$video" \
-        -stream_loop -1 -i "$sound" \
-        -filter_complex "[0:v]setpts=${SLOW_FACTOR}*PTS[vout];[0:a]atempo=${audio_atempo}[orig];[1:a]volume=${BACKGROUND_VOLUME}[bg];[orig][bg]amix=inputs=2:duration=first:dropout_transition=2[aout]" \
+        -stream_loop -1 -i "$actual_sound" \
+        -filter_complex "[0:v]setpts=${current_slow_factor}*PTS[v_slow];[v_slow]drawtext=fontfile='/System/Library/Fonts/STHeiti Medium.ttc':text='史力爱卫':x=w-tw-20:y=h-th-20:fontsize=36:fontcolor=gray@0.3[vout];[0:a]atempo=${audio_atempo}[orig];[1:a]${bg_audio_filter}[bg];[orig][bg]amix=inputs=2:duration=first:dropout_transition=2[aout]" \
         -map "[vout]" \
         -map "[aout]" \
         -c:v libx264 \
@@ -264,28 +342,31 @@ for video in "${videos[@]}"; do
         -c:a aac \
         -b:a 192k \
         -shortest \
-        "${duration_args[@]}" \
+        ${duration_args[@]+"${duration_args[@]}"} \
         "$output"
     else
       ffmpeg -y \
         -i "$video" \
-        -stream_loop -1 -i "$sound" \
-        -filter_complex "[1:a]volume=${BACKGROUND_VOLUME}[bg];[0:a][bg]amix=inputs=2:duration=first:dropout_transition=2[aout]" \
-        -map 0:v:0 \
+        -stream_loop -1 -i "$actual_sound" \
+        -filter_complex "[0:v]drawtext=fontfile='/System/Library/Fonts/STHeiti Medium.ttc':text='史力爱卫':x=w-tw-20:y=h-th-20:fontsize=36:fontcolor=gray@0.3[vout];[1:a]${bg_audio_filter}[bg];[0:a][bg]amix=inputs=2:duration=first:dropout_transition=2[aout]" \
+        -map "[vout]" \
         -map "[aout]" \
-        -c:v copy \
+        -c:v libx264 \
+        -preset veryfast \
+        -crf 18 \
+        -pix_fmt yuv420p \
         -c:a aac \
         -b:a 192k \
         -shortest \
-        "${duration_args[@]}" \
+        ${duration_args[@]+"${duration_args[@]}"} \
         "$output"
     fi
   else
-    if [ "$slow_enabled" -eq 1 ]; then
+    if [ "$current_slow_enabled" -eq 1 ]; then
       ffmpeg -y \
         -i "$video" \
-        -stream_loop -1 -i "$sound" \
-        -filter_complex "[0:v]setpts=${SLOW_FACTOR}*PTS[vout];[1:a]volume=${BACKGROUND_VOLUME}[aout]" \
+        -stream_loop -1 -i "$actual_sound" \
+        -filter_complex "[0:v]setpts=${current_slow_factor}*PTS[v_slow];[v_slow]drawtext=fontfile='/System/Library/Fonts/STHeiti Medium.ttc':text='史力爱卫':x=w-tw-20:y=h-th-20:fontsize=36:fontcolor=gray@0.3[vout];[1:a]${bg_audio_filter}[aout]" \
         -map "[vout]" \
         -map "[aout]" \
         -c:v libx264 \
@@ -295,22 +376,30 @@ for video in "${videos[@]}"; do
         -c:a aac \
         -b:a 192k \
         -shortest \
-        "${duration_args[@]}" \
+        ${duration_args[@]+"${duration_args[@]}"} \
         "$output"
     else
       ffmpeg -y \
         -i "$video" \
-        -stream_loop -1 -i "$sound" \
-        -filter_complex "[1:a]volume=${BACKGROUND_VOLUME}[aout]" \
-        -map 0:v:0 \
+        -stream_loop -1 -i "$actual_sound" \
+        -filter_complex "[0:v]drawtext=fontfile='/System/Library/Fonts/STHeiti Medium.ttc':text='史力爱卫':x=w-tw-20:y=h-th-20:fontsize=36:fontcolor=gray@0.3[vout];[1:a]${bg_audio_filter}[aout]" \
+        -map "[vout]" \
         -map "[aout]" \
-        -c:v copy \
+        -c:v libx264 \
+        -preset veryfast \
+        -crf 18 \
+        -pix_fmt yuv420p \
         -c:a aac \
         -b:a 192k \
         -shortest \
-        "${duration_args[@]}" \
+        ${duration_args[@]+"${duration_args[@]}"} \
         "$output"
     fi
+  fi
+
+  # Clean up temporary trimmed sound file
+  if [ "$actual_sound" != "$sound" ] && [ -f "$actual_sound" ]; then
+    rm "$actual_sound"
   fi
 
   echo "  saved: $output"
