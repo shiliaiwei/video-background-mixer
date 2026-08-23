@@ -30,7 +30,7 @@ Options:
   -v, --video-dir DIR   Set the video input directory
   -s, --sound-dir DIR   Set the sound input directory
   -o, --output-dir DIR  Set the output directory
-  -b, --volume VOL      Set background music volume scale, e.g., 0.15 (default: 0.20)
+  -b, --volume VOL      Set background music volume scale, e.g., 0.15 (default: 1.50)
   -l, --limit NUM       Limit the number of videos to process (default: 0, no limit)
   -f, --slow-factor X   Slow down video/audio factor, e.g., 1.0 to disable (default: 1.00)
   -c, --seek-sound SECS Seconds of background music to skip at start (default: 0)
@@ -181,7 +181,7 @@ while IFS= read -r -d '' video_file; do
 done < <(
   find "$VIDEO_DIR" -maxdepth 1 -type f \
     \( -iname '*.mp4' -o -iname '*.mov' -o -iname '*.m4v' \) \
-    -print0
+    -print0 | sort -z
 )
 
 # Collect sound files
@@ -191,7 +191,7 @@ while IFS= read -r -d '' sound_file; do
 done < <(
   find "$SOUND_DIR" -maxdepth 1 -type f \
     \( -iname '*.mp3' -o -iname '*.wav' -o -iname '*.m4a' -o -iname '*.aac' -o -iname '*.flac' \) \
-    -print0
+    -print0 | sort -z
 )
 
 if [ "${#videos[@]}" -eq 0 ]; then
@@ -244,11 +244,106 @@ for video in "${videos[@]}"; do
   filename="$(basename "$video")"
   name="${filename%.*}"
 
+  # Determine tags (dynamic unless overridden by custom tags)
+  current_tags="$TAGS"
+  if [ "$current_tags" = " #chess #checkmate #winner" ] || [ -z "$current_tags" ]; then
+    current_tags=$(python3 -c "
+import sys, re
+name = sys.argv[1]
+openings_map = {
+    'Caro-Kann Defense': '#CaroKann',
+    'Caro-Kann': '#CaroKann',
+    'Danish Gambit': '#DanishGambit',
+    'Englund Gambit': '#EnglundGambit',
+    'French Defense': '#FrenchDefense',
+    'King\'s Pawn Opening': '#KingsPawnOpening',
+    'Nimzowitsch Defense': '#NimzowitschDefense',
+    'Owen\'s Defense': '#OwensDefense',
+    'Petrov\'s Defense': '#PetrovsDefense',
+    'Pirc Defense': '#PircDefense',
+    'Queen\'s Pawn Opening': '#QueensPawnOpening',
+    'Réti Opening': '#RetiOpening',
+    'Scandinavian Defense': '#ScandinavianDefense',
+    'Scotch Game': '#ScotchGame',
+    'Van \'t Kruijs Opening': '#VantKruijsOpening',
+    'Vienna Game': '#ViennaGame',
+    'vCenter Game Accepted': '#vCenterGame',
+    'London System': '#LondonSystem',
+    'Modern Defense': '#ModernDefense',
+    'Alekhine\'s Defense': '#AlekhinesDefense',
+    'Mieses Opening': '#MiesesOpening',
+    'Van Geet Opening': '#VanGeetOpening',
+    'Three Knights Opening': '#ThreeKnightsOpening',
+    'Philidor Defense': '#PhilidorDefense',
+}
+variations_map = {
+    'Alien Gambit': '#AlienGambit',
+    'Tarrasch Variation': '#TarraschVariation',
+    'Classical Variation': '#ClassicalVariation',
+    'Mengarini Opening': '#MengariniOpening',
+    'Latvian': '#Latvian',
+    'Mason Countergambit': '#MasonCountergambit',
+    'Leonardis Variation': '#LeonardisVariation',
+    'MacLeod Attack': '#MacLeodAttack',
+    'Falkbeer': '#Falkbeer',
+    'Stanley': '#Stanley',
+    'Horwitz Gambit': '#HorwitzGambit',
+    'Max Lange Defense': '#MaxLangeDefense',
+    'Anderssen Defense': '#AnderssenDefense',
+    'Steinitz Attack': '#SteinitzAttack',
+    'Three Knights Game': '#ThreeKnightsGame',
+    'Czech Defense': '#CzechDefense',
+    'Maróczy Defense': '#MaroczyDefense',
+    'Blackmar': '#Blackmar',
+    'Blackmar-Diemer Gan': '#BlackmarDiemer',
+    'Smith-Morra Gambit': '#SmithMorraGambit',
+    'Taimanov Variation': '#TaimanovVariation',
+    'Sorensen Defense': '#SorensenDefense',
+    'Rubinstein Variation': '#RubinsteinVariation',
+    'Kieseritzky Variation': '#KieseritzkyVariation',
+    'Paulsen Attack': '#PaulsenAttack',
+    'From\'s Gambit': '#FromsGambit',
+    'Berlin Defense': '#BerlinDefense',
+    'Mikenas': '#Mikenas',
+    'Lithuanian Variation': '#LithuanianVariation',
+    'Herrstrom Gambit': '#HerrstromGambit',
+    'Wheeler Gambit': '#WheelerGambit',
+    'de Smet Gambit': '#deSmetGambit',
+    'Riemann Defense': '#RiemannDefense'
+}
+matched_tag = None
+for key, tag in openings_map.items():
+    if key.lower() in name.lower() or key.replace('\'', '').lower() in name.lower():
+        matched_tag = tag
+        break
+if not matched_tag:
+    for key, tag in variations_map.items():
+        if key.lower() in name.lower() or key.replace('\'', '').lower() in name.lower():
+            matched_tag = tag
+            break
+if not matched_tag:
+    cleaned = re.sub(r'[^a-zA-Z\s]', ' ', name)
+    words = [w.capitalize() for w in cleaned.split() if len(w) > 2][:1]
+    if words:
+        matched_tag = '#' + ''.join(words)
+    else:
+        matched_tag = '#Chess'
+print(' ' + matched_tag + ' #CheckMate #Winner')
+" "$name")
+  fi
+
   # Calculate subfolder grouping (limit 15 videos per folder)
   folder_num=$(((count - 1) / 15 + 1))
   target_dir="$OUTPUT_DIR/part_$folder_num"
   mkdir -p "$target_dir"
-  output="$target_dir/${name}${TAGS}.mp4"
+
+  # Truncate filename if it is too long for the filesystem (limit 250 chars total)
+  suffix="${current_tags}.mp4"
+  max_name_len=$((250 - ${#suffix}))
+  if [ "${#name}" -gt "$max_name_len" ]; then
+    name="${name:0:$max_name_len}"
+  fi
+  output="$target_dir/${name}${suffix}"
 
   if [ -f "$output" ]; then
     echo "[$count/${#videos[@]}] $filename"

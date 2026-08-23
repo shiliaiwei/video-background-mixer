@@ -1,17 +1,37 @@
 # OS-specific files
 .DS_Store
+*.DS_Store
+
+# Google API Credentials & Tokens (NEVER COMMIT)
+client_secret*.json
+token*.json
+credentials*.json
+*.env
+.env*
+
+# Python Virtual Environments & Bytecode
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
 
 # Media files
 *.mp4
 *.mov
+*.mkv
+*.avi
 *.mp3
 *.wav
 *.m4a
 *.aac
 *.flac
 
-# Media and output folders
+# Media and Output Directories
 background_sounds/
+videos/
+fb/
 output/
 video_*/
+fb_temp_stage/
 New Folder With Items/
