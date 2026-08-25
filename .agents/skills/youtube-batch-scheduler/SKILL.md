@@ -27,12 +27,12 @@ Whenever the user says **"continue scheduling"**, **"schedule videos"**, **"cont
 ./venv/bin/python batch_scheduler.py
 ```
 
-## Current Live State (As of August 24, 2026)
-- **Total Scheduled on Channel**: **371 videos**
-- **Total Days Covered**: **123+ days** (~4 full months of continuous daily uploads)
-- **Last Scheduled Slot**: **`2026-12-29 14:00` (December 29, 2026 at 02:00 PM ICT)**
-- **Next Resumption Slot**: **`2026-12-29 19:30` (December 29, 2026 at 07:30 PM ICT)**
-- **Remaining Unscheduled**: **690 videos**
+## Current Live State (As of August 26, 2026)
+- **Total Scheduled on Channel**: **557 videos**
+- **Total Days Covered**: **185+ days** (~6 full months of continuous daily uploads)
+- **Last Scheduled Slot**: **`2027-03-05 14:00` (March 5, 2027 at 02:00 PM ICT)**
+- **Next Resumption Slot**: **`2027-03-05 19:30` (March 5, 2027 at 07:30 PM ICT)**
+- **Remaining Unscheduled**: **490 videos**
 
 ## Behavior & Quota Limits
 1. The script inspects all private videos on the channel and identifies:

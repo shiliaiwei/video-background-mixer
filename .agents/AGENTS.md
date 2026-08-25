@@ -22,7 +22,16 @@
 - **Batch Script**: Always use [batch_scheduler.py](file:///Users/Apple16/Desktop/Go%20To%20YouT/batch_scheduler.py) which auto-resumes from the latest scheduled video slot and respects YouTube Data API daily quotas (~186-200 videos/day).
 - **Execution Command**: `./venv/bin/python batch_scheduler.py`
 - **Current Live Status**:
-  - Total Scheduled: **371 videos** (123+ days of content)
-  - Last Scheduled Slot: **`2026-12-29 14:00` (December 29, 2026 at 02:00 PM ICT)**
-  - Next Slot Ready: **`2026-12-29 19:30` (December 29, 2026 at 07:30 PM ICT)**
+  - Total Scheduled: **557 videos** (185+ days of content)
+  - Last Scheduled Slot: **`2027-03-05 14:00` (March 5, 2027 at 02:00 PM ICT)**
+  - Next Slot Ready: **`2027-03-05 19:30` (March 5, 2027 at 07:30 PM ICT)**
   - Trigger Word: Whenever user says **"continue scheduling"**, execute `./venv/bin/python batch_scheduler.py`.
+
+## Facebook Video Reorganization Rules & Skill
+
+- **Target Directory**: `fb/`
+- **Partition Limit**: Strictly **12 videos per subfolder** (`part_1`, `part_2`, ...).
+- **Execution Script**: [reorganize_fb.py](file:///Users/Apple16/Desktop/Go%20To%20YouT/reorganize_fb.py)
+- **Execution Command**: `python3 reorganize_fb.py`
+- **Safety**: Collects all `.mp4` / `.mov` files into a temporary staging folder (`fb_temp_stage`), deduplicates any duplicate names with `_dup{N}`, clears previous part structures, and distributes evenly into 12-video batches.
+- **Trigger**: When asked to **"reorganize fb"**, **"organize fb videos"**, or **"split fb videos into 12"**.
