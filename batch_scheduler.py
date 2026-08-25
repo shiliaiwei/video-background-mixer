@@ -193,23 +193,36 @@ def main():
         title = video['title']
         loc_str = local_dt.strftime('%Y-%m-%d %H:%M')
 
-        try:
-            schedule_video(youtube, vid_id, utc_dt)
-            print(f"[{idx:4d}/{len(unscheduled_videos)}] ✅ Scheduled: {loc_str} | {vid_id} | {title[:50]}", flush=True)
-            success_count += 1
-            time.sleep(0.1)
-        except HttpError as e:
-            err_content = str(e)
-            if "quotaExceeded" in err_content or "quota" in err_content.lower():
-                print(f"\n⚠️ YouTube API daily quota limit reached after {success_count} videos.", flush=True)
-                print("YouTube allows ~200 video updates per 24 hours.", flush=True)
-                print(f"Progress saved! Total scheduled on channel is now: {len(scheduled_videos) + success_count}", flush=True)
-                print("Simply run 'python batch_scheduler.py' again tomorrow to continue the next batch.", flush=True)
-                quota_exceeded = True
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                schedule_video(youtube, vid_id, utc_dt)
+                print(f"[{idx:4d}/{len(unscheduled_videos)}] ✅ Scheduled: {loc_str} | {vid_id} | {title[:50]}", flush=True)
+                success_count += 1
+                time.sleep(0.1)
                 break
-            else:
-                print(f"[{idx:4d}/{len(unscheduled_videos)}] ❌ Error for {vid_id}: {e}", flush=True)
-                time.sleep(1)
+            except HttpError as e:
+                err_content = str(e)
+                if "quotaExceeded" in err_content or "quota" in err_content.lower():
+                    print(f"\n⚠️ YouTube API daily quota limit reached after {success_count} videos.", flush=True)
+                    print("YouTube allows ~200 video updates per 24 hours.", flush=True)
+                    print(f"Progress saved! Total scheduled on channel is now: {len(scheduled_videos) + success_count}", flush=True)
+                    print("Simply run 'python batch_scheduler.py' again tomorrow to continue the next batch.", flush=True)
+                    quota_exceeded = True
+                    break
+                else:
+                    print(f"[{idx:4d}/{len(unscheduled_videos)}] ❌ HttpError for {vid_id}: {e}", flush=True)
+                    time.sleep(2)
+                    break
+            except Exception as ex:
+                if attempt < max_retries - 1:
+                    print(f"[{idx:4d}/{len(unscheduled_videos)}] 🔄 Network retry {attempt+1}/{max_retries} for {vid_id}: {ex}", flush=True)
+                    time.sleep(3)
+                else:
+                    print(f"[{idx:4d}/{len(unscheduled_videos)}] ❌ Failed after retries for {vid_id}: {ex}", flush=True)
+
+        if quota_exceeded:
+            break
 
     print(f"\n=======================================================")
     print(f" SUMMARY:")

@@ -21,5 +21,8 @@
   - **Slot 3**: `19:30 PM` (12:30 UTC)
 - **Batch Script**: Always use [batch_scheduler.py](file:///Users/Apple16/Desktop/Go%20To%20YouT/batch_scheduler.py) which auto-resumes from the latest scheduled video slot and respects YouTube Data API daily quotas (~186-200 videos/day).
 - **Execution Command**: `./venv/bin/python batch_scheduler.py`
-
-
+- **Current Live Status**:
+  - Total Scheduled: **371 videos** (123+ days of content)
+  - Last Scheduled Slot: **`2026-12-29 14:00` (December 29, 2026 at 02:00 PM ICT)**
+  - Next Slot Ready: **`2026-12-29 19:30` (December 29, 2026 at 07:30 PM ICT)**
+  - Trigger Word: Whenever user says **"continue scheduling"**, execute `./venv/bin/python batch_scheduler.py`.

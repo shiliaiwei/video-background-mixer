@@ -1,6 +1,6 @@
 ---
 name: youtube-batch-scheduler
-description: Automatically batch schedules YouTube Shorts / videos on the channel (史力爱卫) using the YouTube Data API v3. Handles OAuth authentication, 3 daily time slots (09:00, 14:00, 19:30 Local Time), auto-resuming from previous batches, and daily quota limits.
+description: Automatically batch schedules YouTube Shorts / videos on the channel (史力爱卫) using the YouTube Data API v3. Handles OAuth authentication, 3 daily time slots (09:00, 14:00, 19:30 Local Time), auto-resuming from previous batches, network error retries, and daily quota limits.
 ---
 
 # YouTube Video Batch Scheduler Skill
@@ -19,13 +19,20 @@ This skill automates scheduling private/draft YouTube Shorts on the **史力爱�
 ## Key Files
 - `client_secret.json`: OAuth 2.0 Client credentials from Google Cloud Console.
 - `token.json`: Authenticated user OAuth token (valid and persistent).
-- `batch_scheduler.py`: Main executable auto-resuming batch scheduler.
+- `batch_scheduler.py`: Main executable auto-resuming batch scheduler with auto-retry and quota protection.
 
 ## How to Run / Continue
-Whenever the user asks to schedule videos, check progress, or continue the next batch:
+Whenever the user says **"continue scheduling"**, **"schedule videos"**, **"continue next batch"**, or checks progress:
 ```bash
 ./venv/bin/python batch_scheduler.py
 ```
+
+## Current Live State (As of August 24, 2026)
+- **Total Scheduled on Channel**: **371 videos**
+- **Total Days Covered**: **123+ days** (~4 full months of continuous daily uploads)
+- **Last Scheduled Slot**: **`2026-12-29 14:00` (December 29, 2026 at 02:00 PM ICT)**
+- **Next Resumption Slot**: **`2026-12-29 19:30` (December 29, 2026 at 07:30 PM ICT)**
+- **Remaining Unscheduled**: **690 videos**
 
 ## Behavior & Quota Limits
 1. The script inspects all private videos on the channel and identifies:
@@ -33,4 +40,5 @@ Whenever the user asks to schedule videos, check progress, or continue the next 
    - Unscheduled draft videos.
 2. It finds the latest scheduled date and automatically calculates the next slot so there are no gaps.
 3. YouTube Data API allows ~180-200 updates per 24 hours (10,000 units quota). When quota is reached, it saves state and stops cleanly.
-4. Running the script again on the next day picks up seamlessly from the next unscheduled video.
+4. Automatic 3-attempt retry logic handles any intermittent network timeouts.
+5. Running the script again on the next day picks up seamlessly from the next unscheduled video.
